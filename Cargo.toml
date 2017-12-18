@@ -1,0 +1,8 @@
+[package]
+name = "pssh-rs"
+version = "1.0.0"
+authors = ["Denis BOURGE <bourge.denis@gmail.com>"]
+
+[dependencies]
+clap = "2.29"
+yaml-rust = "*"
