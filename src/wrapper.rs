@@ -15,19 +15,19 @@ pub fn ping(ip: &String) {
 }
 
 pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
-    let mut child = Command::new("scp");
+    let mut command = Command::new("scp");
     
     if config.identity.is_some() {
-        child.args(&["-i", &(config.identity.as_ref().unwrap())]);
+        command.args(&["-i", &(config.identity.as_ref().unwrap())]);
     }
     
     if config.port.is_some() {
-        child.args(&["-P", &(config.port.as_ref().unwrap().to_string())]);
+        command.args(&["-P", &(config.port.as_ref().unwrap().to_string())]);
     } else {
-        child.args(&["-P", "22"]);
+        command.args(&["-P", "22"]);
     }
     
-    child.args(&[source]);
+    command.args(&[source]);
     
     let user_path: String;
     if config.user.is_some() {
@@ -43,23 +43,25 @@ pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
         );
     }
     
-    child.arg(&user_path);
+    command.arg(&user_path);
+    
+    debug!("Executing {}", format!("{:?}", command));
 
-    let mut child_proc = child.spawn().expect("Failed to execute ping");
-    child_proc.wait().expect("Failed to wait on child");
+    let mut child = command.spawn().expect("Failed to execute ping");
+    child.wait().expect("Failed to wait on child");
 }
 
 pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
-    let mut child = Command::new("ssh");
+    let mut command = Command::new("ssh");
     
     if config.identity.is_some() {
-        child.args(&["-i", &(config.identity.as_ref().unwrap())]);
+        command.args(&["-i", &(config.identity.as_ref().unwrap())]);
     }
     
     if config.port.is_some() {
-        child.args(&["-p", &(config.port.as_ref().unwrap().to_string())]);
+        command.args(&["-p", &(config.port.as_ref().unwrap().to_string())]);
     } else {
-        child.args(&["-p", "22"]);
+        command.args(&["-p", "22"]);
     }
     
     let user_name: Option<&str>;
@@ -85,12 +87,14 @@ pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
         );
     }
     
-    child.arg(&user_path);
+    command.arg(&user_path);
     
     if tmux {
-        child.arg("tmux attach || tmux new");
+        command.arg("tmux attach || tmux new");
     }
     
-    let mut child_proc = child.spawn().expect("Failed to execute ping");
-    child_proc.wait().expect("Failed to wait on child");
+    debug!("Executing {}", format!("{:?}", command));
+    
+    let mut child = command.spawn().expect("Failed to execute ping");
+    child.wait().expect("Failed to wait on child");
 }
