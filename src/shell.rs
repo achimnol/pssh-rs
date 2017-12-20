@@ -1,12 +1,37 @@
 //! Shell
 
 use std::env;
+use std::io;
+
+use log;
+use chrono;
+use fern;
 
 use clap::{Arg, SubCommand, App};
 
 use config::load_configuration_file;
+use wrapper::{ping, ssh, scp};
 
 const VERSION: &str = "1.0.0";
+
+fn init_logger(level: log::LogLevelFilter) -> Result<(), log::SetLoggerError> {
+    fern::Dispatch::new()
+        // Perform allocation-free log formatting
+        .format(|out, message, record| {
+            out.finish(format_args!("{}[{}][{}] {}",
+                chrono::Local::now()
+                    .format("[%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message))
+        })
+        // Add blanket level filter -
+        .level(level)
+        // Output to stdout
+        .chain(io::stdout())
+        // Apply globally
+        .apply()
+}
 
 pub fn init_shell() {
     let mut app = App::new("pssh")
@@ -99,11 +124,18 @@ pub fn init_shell() {
             
     let matches = app.get_matches_from_safe_borrow(&mut env::args_os());    
     match matches {
-        Ok(result) => {            
+        Ok(result) => {
+            let level = match result.is_present("verbose") {
+                true => log::LogLevelFilter::Debug,
+                false => log::LogLevelFilter::Info
+            };
+            
+            init_logger(level).expect("Failed to initialize logger.");
+                     
             let config_file = result.value_of("file").and_then(|s| Some(String::from(s)));
             
             match result.subcommand() {
-                ("list", Some(args)) => handle_list(config_file),
+                ("list", _) => handle_list(config_file),
                 ("show", Some(args)) => handle_show(config_file, args.value_of("machine").unwrap()),
                 ("pull", Some(args)) => handle_pull(
                     config_file,
@@ -137,28 +169,72 @@ pub fn init_shell() {
 }
 
 fn handle_list(config_file: Option<String>) {
-    load_configuration_file(config_file);
+    let config_content = load_configuration_file(config_file);
+    let mut machine_names: Vec<String> = config_content.keys().map(|x| x.clone()).collect();
+    machine_names.sort();
     
-    println!("list machines !");
+    for key in machine_names.iter() {
+        println!("> {}", key);
+    }
 }
 
 fn handle_show(config_file: Option<String>, machine: &str) {
-    println!("showing machine {}", machine);
+    let config_content = load_configuration_file(config_file);
+    let machine_config = config_content.get(machine);
+    
+    if machine_config.is_none() {
+        println!("Config `{}` does not exist.", machine);
+        return;
+    }
+    
+    let machine_config = machine_config.unwrap();
+    machine_config.show_info(machine);
 }
 
 fn handle_pull(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
-    println!("pulling file {} from machine {} to {}", source, machine, destination);
+    let config_content = load_configuration_file(config_file);
+    let machine_config = config_content.get(machine);    
+    
+    if machine_config.is_none() {
+        println!("Config `{}` does not exist.", machine);
+        return;
+    }
+    
+    scp(&(machine_config.unwrap()), source, destination);
 }
 
 fn handle_push(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
-    println!("pushing file {} to machine {} at {}", source, machine, destination);
+    let config_content = load_configuration_file(config_file);
+    let machine_config = config_content.get(machine);
+        
+    if machine_config.is_none() {
+        println!("Config `{}` does not exist.", machine);
+        return;
+    }
+
+    scp(&(machine_config.unwrap()), source, destination);
 }
 
 fn handle_ping(config_file: Option<String>, machine: &str) {
-    println!("pinging machine {}", machine);
+    let config_content = load_configuration_file(config_file);
+    let machine_config = config_content.get(machine);
+    
+    if machine_config.is_none() {
+        println!("Config `{}` does not exist.", machine);
+        return;
+    }
+    
+    ping(&(machine_config.as_ref().unwrap().ip.as_ref().unwrap()));
 }
 
 fn handle_connect(config_file: Option<String>, machine: &str, user: Option<&str>, tmux: bool) {
-    println!("connecting to machine {}", machine);
-    println!("user: {:?}, tmux: {}", user, tmux);
+    let config_content = load_configuration_file(config_file);
+    let machine_config = config_content.get(machine);
+    
+    if machine_config.is_none() {
+        println!("Config `{}` does not exist.", machine);
+        return;
+    }
+        
+    ssh(machine_config.unwrap(), user, tmux);
 }
