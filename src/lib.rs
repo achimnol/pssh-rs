@@ -6,6 +6,7 @@ extern crate log;
 extern crate fern;
 extern crate chrono;
 
+#[cfg(test)]
 #[macro_use]
 extern crate maplit;
 
