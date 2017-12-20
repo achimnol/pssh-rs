@@ -170,7 +170,7 @@ pub fn init_shell() {
 
 fn handle_list(config_file: Option<String>) {
     let config_content = load_configuration_file(config_file);
-    let mut machine_names: Vec<String> = config_content.keys().map(|x| x.clone()).collect();
+    let mut machine_names: Vec<String> = config_content.machine_values.keys().map(|x| x.clone()).collect();
     machine_names.sort();
     
     for key in machine_names.iter() {
@@ -180,7 +180,7 @@ fn handle_list(config_file: Option<String>) {
 
 fn handle_show(config_file: Option<String>, machine: &str) {
     let config_content = load_configuration_file(config_file);
-    let machine_config = config_content.get(machine);
+    let machine_config = config_content.machine_values.get(machine);
     
     if machine_config.is_none() {
         println!("Config `{}` does not exist.", machine);
@@ -193,7 +193,7 @@ fn handle_show(config_file: Option<String>, machine: &str) {
 
 fn handle_pull(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
     let config_content = load_configuration_file(config_file);
-    let machine_config = config_content.get(machine);    
+    let machine_config = config_content.machine_values.get(machine);    
     
     if machine_config.is_none() {
         println!("Config `{}` does not exist.", machine);
@@ -205,7 +205,7 @@ fn handle_pull(config_file: Option<String>, machine: &str, source: &str, destina
 
 fn handle_push(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
     let config_content = load_configuration_file(config_file);
-    let machine_config = config_content.get(machine);
+    let machine_config = config_content.machine_values.get(machine);
         
     if machine_config.is_none() {
         println!("Config `{}` does not exist.", machine);
@@ -217,7 +217,7 @@ fn handle_push(config_file: Option<String>, machine: &str, source: &str, destina
 
 fn handle_ping(config_file: Option<String>, machine: &str) {
     let config_content = load_configuration_file(config_file);
-    let machine_config = config_content.get(machine);
+    let machine_config = config_content.machine_values.get(machine);
     
     if machine_config.is_none() {
         println!("Config `{}` does not exist.", machine);
@@ -229,7 +229,7 @@ fn handle_ping(config_file: Option<String>, machine: &str) {
 
 fn handle_connect(config_file: Option<String>, machine: &str, user: Option<&str>, tmux: bool) {
     let config_content = load_configuration_file(config_file);
-    let machine_config = config_content.get(machine);
+    let machine_config = config_content.machine_values.get(machine);
     
     if machine_config.is_none() {
         println!("Config `{}` does not exist.", machine);

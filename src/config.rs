@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use yaml_rust::YamlLoader;
 use yaml_rust::Yaml;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MachineConfig {
     pub ip: Option<String>,
     pub port: Option<u16>,
@@ -20,6 +20,12 @@ pub struct MachineConfig {
 }
 
 pub type ConfigMap = HashMap<String, MachineConfig>;
+
+#[derive(Debug)]
+pub struct ConfigResult {
+    pub default_values: ConfigMap,
+    pub machine_values: ConfigMap
+}
 
 impl MachineConfig {
     pub fn merge(&self, other: &MachineConfig) -> MachineConfig {
@@ -69,12 +75,18 @@ impl MachineConfig {
     }
 }
 
-pub fn load_configuration_file(path_to_file: Option<String>) -> ConfigMap {
+pub fn load_configuration_file(path_to_file: Option<String>) -> ConfigResult {
     let path_to_file = match path_to_file {
         Some(x) => x,
         None => get_user_configuration_path()
     };
     
+    let contents = load_file_contents(path_to_file);
+    
+    load_configuration_string(&contents)
+}
+
+fn load_file_contents(path_to_file: String) -> String {
     debug!("Loading {}...", path_to_file);
     
     let mut f = File::open(&path_to_file).expect(&format!("File {} not found.", path_to_file));
@@ -82,6 +94,10 @@ pub fn load_configuration_file(path_to_file: Option<String>) -> ConfigMap {
     
     f.read_to_string(&mut contents).expect("Error while reading file.");
     
+    contents
+}
+
+fn load_configuration_string(contents: &str) -> ConfigResult {
     let docs = YamlLoader::load_from_str(&contents).unwrap();
     let doc = &docs[0].as_hash().unwrap();
         
@@ -90,8 +106,12 @@ pub fn load_configuration_file(path_to_file: Option<String>) -> ConfigMap {
     
     let default_map = handle_values(&default_values);
     let machine_map = handle_values(&machine_values);
+    let machine_map = apply_machine_configurations(&machine_map, &default_map);
     
-    apply_machine_configurations(&machine_map, &default_map)
+    return ConfigResult {
+        default_values: default_map,
+        machine_values: machine_map
+    }
 }
 
 fn get_user_configuration_path() -> String {
@@ -149,7 +169,7 @@ fn apply_machine_configurations(machine_map: &ConfigMap, default_map: &ConfigMap
         let machine_config = machine_map.get(k).unwrap();
         
         let machine_applied_config = match default_config {
-            Some(x) => machine_config.merge(&x),
+            Some(x) => x.merge(&machine_config),
             None => machine_config.clone()
         };
         
@@ -160,6 +180,10 @@ fn apply_machine_configurations(machine_map: &ConfigMap, default_map: &ConfigMap
 }
 
 fn extract_machine_values(data: &Yaml) -> MachineConfig {
+    if data.as_hash().is_none() {
+        return Default::default();
+    }
+    
     let dict_data = data.as_hash().unwrap();
     
     MachineConfig {
@@ -171,8 +195,12 @@ fn extract_machine_values(data: &Yaml) -> MachineConfig {
     }
 }
 
-fn extract_definition_keys(parent_key: &str, current_yaml: &Yaml) -> ConfigMap {
-    let current_dict = current_yaml.as_hash().unwrap();    
+fn extract_definition_keys(parent_key: &str, current_yaml: &Yaml) -> ConfigMap {        
+    if current_yaml.as_hash().is_none() {
+        return HashMap::new();
+    }
+
+    let current_dict = current_yaml.as_hash().unwrap();
     let keys = current_dict.keys().map(|x| x.as_str().unwrap()).collect::<Vec<&str>>();
     let mut result: ConfigMap = HashMap::new();
     
@@ -203,4 +231,148 @@ fn extract_definition_keys(parent_key: &str, current_yaml: &Yaml) -> ConfigMap {
     }
 
     result
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    
+    #[test]
+    fn empty_defaults() {
+        let str_content = r#"
+            defaults:
+            machines:
+        "#;
+        
+        let config = load_configuration_string(str_content);
+        assert_eq!(config.default_values.keys().len(), 0);
+        assert_eq!(config.machine_values.keys().len(), 0);
+    }
+    
+    #[test]
+    fn not_empty_defaults() {
+        let str_content = r#"
+            machines:
+            defaults:
+                _values:
+                    user: pouet
+                one:
+                    two:
+                        _values:
+                            user: pouet
+                            port: 5555
+                        five:
+                            _values:
+                                port: 5566
+                    _values:
+                        port: 4455
+                three:
+                    _values:
+                four:
+        "#;
+        
+        let config = load_configuration_string(str_content);
+        assert_eq!(config.machine_values.keys().len(), 0);
+        assert_eq!(config.default_values.keys().len(), 5);
+        
+        assert!(config.default_values.contains_key(""));
+        assert!(config.default_values.contains_key("one"));
+        assert!(config.default_values.contains_key("three"));
+        assert!(config.default_values.contains_key("one:two"));
+        assert!(config.default_values.contains_key("one:two:five"));
+        assert!(config.default_values.contains_key("four") == false);
+    }
+    
+    #[test]
+    #[should_panic]
+    fn defaults_error() {
+        let str_content = r#"
+            machines:
+            defaults:
+                _values:
+                    user: pouet
+                one:pouet:
+                    _values:
+                        user: hello
+        "#;
+        
+        load_configuration_string(str_content);
+    }
+    
+    #[test]
+    fn default_values() {
+        let values = hashmap!(
+            "".to_owned() => MachineConfig {
+                user: Some("hello".to_owned()),
+                port: Some(22),
+                ..Default::default()
+            },
+            "coucou".to_owned() => MachineConfig {
+                port: Some(23),
+                ..Default::default()
+            },
+            "coucou:hello".to_owned() => MachineConfig {
+                port: Some(24),
+                ..Default::default()
+            }
+        );
+        
+        let config = fetch_default_values_for_name(&"toto".to_owned(), &values).unwrap();        
+        assert_eq!(config.user, Some("hello".to_owned()));
+        assert_eq!(config.port, Some(22));
+        assert_eq!(config.identity, None);
+        
+        let config = fetch_default_values_for_name(&"coucou".to_owned(), &values).unwrap();        
+        assert_eq!(config.user, Some("hello".to_owned()));
+        assert_eq!(config.port, Some(23));
+        assert_eq!(config.identity, None);
+        
+        let config = fetch_default_values_for_name(&"coucou:pouet".to_owned(), &values).unwrap();
+        assert_eq!(config.user, Some("hello".to_owned()));
+        assert_eq!(config.port, Some(23));
+        
+        let config = fetch_default_values_for_name(&"coucou:hello".to_owned(), &values).unwrap();
+        assert_eq!(config.user, Some("hello".to_owned()));
+        assert_eq!(config.port, Some(24));
+        
+        let config = fetch_default_values_for_name(&"coucou:hello:one".to_owned(), &values).unwrap();
+        assert_eq!(config.user, Some("hello".to_owned()));
+        assert_eq!(config.port, Some(24));
+    }
+    
+    #[test]
+    fn machine_configurations() {
+        let defaults = hashmap!(
+            "".to_owned() => MachineConfig {
+                user: Some("hello".to_owned()),
+                ..Default::default()
+            },
+            "coucou".to_owned() => MachineConfig {
+                port: Some(23),
+                ..Default::default()
+            }
+        );
+        
+        let machines = hashmap!(
+            "coucou".to_owned() => MachineConfig {
+                port: Some(22),
+                ..Default::default()
+            },
+            "coucou:hello".to_owned() => MachineConfig {
+                ip: Some("127.0.0.1".to_owned()),
+                ..Default::default()
+            }
+        );
+        
+        let configured_machines = apply_machine_configurations(&machines, &defaults);
+        let m_coucou = configured_machines.get(&"coucou".to_owned()).unwrap(); 
+        let m_coucou_hello = configured_machines.get(&"coucou:hello".to_owned()).unwrap(); 
+        
+        assert_eq!(m_coucou.port, Some(22));
+        assert_eq!(m_coucou.user, Some("hello".to_owned()));
+        
+        assert_eq!(m_coucou_hello.user, Some("hello".to_owned()));
+        assert_eq!(m_coucou_hello.port, Some(23));
+        assert_eq!(m_coucou_hello.ip, Some("127.0.0.1".to_owned()));
+    }
 }
