@@ -1,6 +1,8 @@
 pssh - simple SSH connection utility
 ====================================
 
+[![pipeline status](https://gitlab.com/Srynetix/pssh-rs/badges/master/pipeline.svg)](https://gitlab.com/Srynetix/pssh-rs/commits/master)
+
 ## Key features
 
 - Define all of your connection configurations in only **one YAML file**.
