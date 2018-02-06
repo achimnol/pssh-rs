@@ -1,4 +1,4 @@
-//! Config
+//! Config management functions
 
 use std::env;
 use std::fs::File;
@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use yaml_rust::YamlLoader;
 use yaml_rust::Yaml;
 
+/// `MachineConfig`: Contains a machine configuration
 #[derive(Debug, Clone, Default)]
 pub struct MachineConfig {
     pub ip: Option<String>,
@@ -36,7 +37,7 @@ impl MachineConfig {
         }
         
         if other.port.is_some() {
-            config.port = other.port.clone();
+            config.port = other.port;
         }
         
         if other.user.is_some() {
@@ -56,37 +57,26 @@ impl MachineConfig {
     
     pub fn show_info(&self, machine: &str) {
         println!("Configuration for `{}`:", machine);
-        
-        if self.ip.is_some() {
-            println!("  IP: {}", self.ip.as_ref().unwrap());
-        }
-        if self.port.is_some() {
-            println!("  Port: {}", self.port.as_ref().unwrap());
-        }
-        if self.user.is_some() {
-            println!("  User: {}", self.user.as_ref().unwrap());
-        }
-        if self.pass.is_some() {
-            println!("  Pass: *******");
-        }
-        if self.identity.is_some() {
-            println!("  Identity: {}", self.identity.as_ref().unwrap());
-        }
+    
+        self.ip.as_ref().map(|x| println!("  IP: {}", x));
+        self.port.as_ref().map(|x| println!("  Port: {}", x));
+        self.user.as_ref().map(|x| println!("  User: {}", x));
+        self.pass.as_ref().map(|_| println!("  Pass: *******"));
+        self.identity.as_ref().map(|x| println!("  Identity: {}", x));
     }
 }
 
-pub fn load_configuration_file(path_to_file: Option<String>) -> ConfigResult {
+pub fn load_configuration_file(path_to_file: Option<&str>) -> ConfigResult {
     let path_to_file = match path_to_file {
-        Some(x) => x,
+        Some(x) => x.to_string(),
         None => get_user_configuration_path()
     };
     
-    let contents = load_file_contents(path_to_file);
-    
+    let contents = load_file_contents(&path_to_file);
     load_configuration_string(&contents)
 }
 
-fn load_file_contents(path_to_file: String) -> String {
+fn load_file_contents(path_to_file: &str) -> String {
     debug!("Loading {}...", path_to_file);
     
     let mut f = File::open(&path_to_file).expect(&format!("File {} not found.", path_to_file));
@@ -98,17 +88,17 @@ fn load_file_contents(path_to_file: String) -> String {
 }
 
 fn load_configuration_string(contents: &str) -> ConfigResult {
-    let docs = YamlLoader::load_from_str(&contents).unwrap();
+    let docs = YamlLoader::load_from_str(contents).unwrap();
     let doc = &docs[0].as_hash().unwrap();
         
     let default_values = doc.get(&Yaml::from_str("defaults")).unwrap();
     let machine_values = doc.get(&Yaml::from_str("machines")).unwrap();
     
-    let default_map = handle_values(&default_values);
-    let machine_map = handle_values(&machine_values);
+    let default_map = handle_values(default_values);
+    let machine_map = handle_values(machine_values);
     let machine_map = apply_machine_configurations(&machine_map, &default_map);
     
-    return ConfigResult {
+    ConfigResult {
         default_values: default_map,
         machine_values: machine_map
     }
@@ -117,24 +107,25 @@ fn load_configuration_string(contents: &str) -> ConfigResult {
 fn get_user_configuration_path() -> String {
     let home_path = match env::home_dir() {
         Some(path) => path.into_os_string().into_string().unwrap(),
-        None => "~".to_owned()
+        None => "~".to_string()
     };
     
     let full_path: PathBuf = [&home_path, ".pssh", "config.yml"].iter().collect();
     full_path.into_os_string().into_string().unwrap()
 }
 
-fn fetch_default_values_for_name(name: &String, default_map: &ConfigMap) -> Option<MachineConfig> {
+fn fetch_default_values_for_name(name: &str, default_map: &ConfigMap) -> Option<MachineConfig> {
     let default_keys: Vec<String> = default_map.keys().map(|x| x.to_owned()).collect();
     let split_parent_names: Vec<&str> = name.split(':').collect();
     
     let mut current_parent: String = "".to_owned();
-    let mut current_values: Option<MachineConfig> = None;
     
     // Fetch global default values
-    if default_keys.contains(&"".to_owned()) {
-        current_values = default_map.get(&"".to_owned()).map(|x| x.clone());
-    }
+    let mut current_values = if default_keys.contains(&"".to_owned()) {
+        default_map.get(&"".to_owned()).cloned()
+    } else {
+        None
+    };
     
     for parent in split_parent_names {
         if current_parent == "" {
@@ -165,11 +156,11 @@ fn apply_machine_configurations(machine_map: &ConfigMap, default_map: &ConfigMap
     for k in machine_map.keys() {
         let key = k.clone();
         
-        let default_config = fetch_default_values_for_name(k, &default_map);
+        let default_config = fetch_default_values_for_name(k, default_map);
         let machine_config = machine_map.get(k).unwrap();
         
         let machine_applied_config = match default_config {
-            Some(x) => x.merge(&machine_config),
+            Some(x) => x.merge(machine_config),
             None => machine_config.clone()
         };
         
@@ -215,16 +206,15 @@ fn extract_definition_keys(parent_key: &str, current_yaml: &Yaml) -> ConfigMap {
                 panic!("Bad character ':' in key: {}", key);
             } 
             
-            let current_key: String;
-            if parent_key == "" {
-                current_key = key.to_owned();
+            let current_key = if parent_key == "" {                
+                key.to_owned()
             } else {
-                current_key = format!("{}:{}", parent_key, key);
-            }
+                format!("{}:{}", parent_key, key)
+            };
             
             let current_value = current_dict.get(&Yaml::from_str(key)).unwrap();
-            let local_results = extract_definition_keys(&current_key, &current_value);
-            for (k, v) in local_results.iter() {
+            let local_results = extract_definition_keys(&current_key, current_value);
+            for (k, v) in &local_results {
                 result.insert(k.clone(), v.clone());
             }
         }

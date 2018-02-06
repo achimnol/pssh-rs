@@ -125,14 +125,15 @@ pub fn init_shell() {
     let matches = app.get_matches_from_safe_borrow(&mut env::args_os());    
     match matches {
         Ok(result) => {
-            let level = match result.is_present("verbose") {
-                true => log::LogLevelFilter::Debug,
-                false => log::LogLevelFilter::Info
+            let level = if result.is_present("verbose") {
+                log::LogLevelFilter::Debug
+            } else {
+                log::LogLevelFilter::Info
             };
             
             init_logger(level).expect("Failed to initialize logger.");
                      
-            let config_file = result.value_of("file").and_then(|s| Some(String::from(s)));
+            let config_file = result.value_of("file");
             
             match result.subcommand() {
                 ("list", _) => handle_list(config_file),
@@ -168,17 +169,17 @@ pub fn init_shell() {
     }
 }
 
-fn handle_list(config_file: Option<String>) {
+fn handle_list(config_file: Option<&str>) {
     let config_content = load_configuration_file(config_file);
-    let mut machine_names: Vec<String> = config_content.machine_values.keys().map(|x| x.clone()).collect();
+    let mut machine_names: Vec<String> = config_content.machine_values.keys().cloned().collect();
     machine_names.sort();
     
-    for key in machine_names.iter() {
+    for key in &machine_names {
         println!("> {}", key);
     }
 }
 
-fn handle_show(config_file: Option<String>, machine: &str) {
+fn handle_show(config_file: Option<&str>, machine: &str) {
     let config_content = load_configuration_file(config_file);
     let machine_config = config_content.machine_values.get(machine);
     
@@ -191,7 +192,7 @@ fn handle_show(config_file: Option<String>, machine: &str) {
     machine_config.show_info(machine);
 }
 
-fn handle_pull(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
+fn handle_pull(config_file: Option<&str>, machine: &str, source: &str, destination: &str) {
     let config_content = load_configuration_file(config_file);
     let machine_config = config_content.machine_values.get(machine);    
     
@@ -200,10 +201,10 @@ fn handle_pull(config_file: Option<String>, machine: &str, source: &str, destina
         return;
     }
     
-    scp(&(machine_config.unwrap()), source, destination);
+    scp(machine_config.unwrap(), source, destination);
 }
 
-fn handle_push(config_file: Option<String>, machine: &str, source: &str, destination: &str) {
+fn handle_push(config_file: Option<&str>, machine: &str, source: &str, destination: &str) {
     let config_content = load_configuration_file(config_file);
     let machine_config = config_content.machine_values.get(machine);
         
@@ -212,10 +213,10 @@ fn handle_push(config_file: Option<String>, machine: &str, source: &str, destina
         return;
     }
 
-    scp(&(machine_config.unwrap()), source, destination);
+    scp(machine_config.unwrap(), source, destination);
 }
 
-fn handle_ping(config_file: Option<String>, machine: &str) {
+fn handle_ping(config_file: Option<&str>, machine: &str) {
     let config_content = load_configuration_file(config_file);
     let machine_config = config_content.machine_values.get(machine);
     
@@ -224,10 +225,10 @@ fn handle_ping(config_file: Option<String>, machine: &str) {
         return;
     }
     
-    ping(&(machine_config.as_ref().unwrap().ip.as_ref().unwrap()));
+    ping(machine_config.as_ref().unwrap().ip.as_ref().unwrap());
 }
 
-fn handle_connect(config_file: Option<String>, machine: &str, user: Option<&str>, tmux: bool) {
+fn handle_connect(config_file: Option<&str>, machine: &str, user: Option<&str>, tmux: bool) {
     let config_content = load_configuration_file(config_file);
     let machine_config = config_content.machine_values.get(machine);
     

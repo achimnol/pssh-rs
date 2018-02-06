@@ -4,7 +4,7 @@ use std::process::Command;
 
 use config::MachineConfig;
 
-pub fn ping(ip: &String) {
+pub fn ping(ip: &str) {
     let mut command = Command::new("ping");
     command.arg(ip);      
         
@@ -18,7 +18,7 @@ pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
     let mut command = Command::new("scp");
     
     if config.identity.is_some() {
-        command.args(&["-i", &(config.identity.as_ref().unwrap())]);
+        command.args(&["-i", config.identity.as_ref().unwrap()]);
     }
     
     if config.port.is_some() {
@@ -29,19 +29,18 @@ pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
     
     command.args(&[source]);
     
-    let user_path: String;
-    if config.user.is_some() {
-        user_path = format!("{}@{}:{}",
+    let user_path = if config.user.is_some() {
+        format!("{}@{}:{}",
             &config.user.as_ref().unwrap(),
             &config.ip.as_ref().unwrap(),
             destination
-        );
+        )
     } else {
-        user_path = format!("{}:{}",
+        format!("{}:{}",
             &config.ip.as_ref().unwrap(),
             destination
-        );
-    }
+        )
+    };
     
     command.arg(&user_path);
     
@@ -55,7 +54,7 @@ pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
     let mut command = Command::new("ssh");
     
     if config.identity.is_some() {
-        command.args(&["-i", &(config.identity.as_ref().unwrap())]);
+        command.args(&["-i", config.identity.as_ref().unwrap()]);
     }
     
     if config.port.is_some() {
@@ -75,17 +74,16 @@ pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
         user_name = user;
     }
     
-    let user_path: String;
-    if user_name.is_some() {
-        user_path = format!("{}@{}",
+    let user_path = if user_name.is_some() {
+        format!("{}@{}",
             user_name.unwrap(),
             config.ip.as_ref().unwrap()
-        );
+        )
     } else {
-        user_path = format!("{}",
+        format!("{}",
             config.ip.as_ref().unwrap()
-        );
-    }
+        )
+    };
     
     command.arg(&user_path);
     

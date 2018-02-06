@@ -1,0 +1,10 @@
+before_script:
+  - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly
+
+pssh_build:
+  script:
+    - cargo build
+
+pssh_tests:
+  script:
+    - cargo test
