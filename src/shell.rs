@@ -10,10 +10,16 @@ use fern;
 use clap::{Arg, SubCommand, App};
 
 use config::load_configuration_file;
-use wrapper::{ping, ssh, scp};
+use wrapper::{ping, ssh, scp, execute, ScpDirection};
 
 const VERSION: &str = "1.0.0";
 
+/// Initialize logger
+///
+/// # Arguments
+///
+/// - `level` - Log level
+///
 fn init_logger(level: log::LogLevelFilter) -> Result<(), log::SetLoggerError> {
     fern::Dispatch::new()
         // Perform allocation-free log formatting
@@ -33,6 +39,7 @@ fn init_logger(level: log::LogLevelFilter) -> Result<(), log::SetLoggerError> {
         .apply()
 }
 
+/// Initialize shell
 pub fn init_shell() {
     let mut app = App::new("pssh")
         .version(VERSION)
@@ -201,7 +208,8 @@ fn handle_pull(config_file: Option<&str>, machine: &str, source: &str, destinati
         return;
     }
     
-    scp(machine_config.unwrap(), source, destination);
+    let command = scp(machine_config.unwrap(), source, destination, ScpDirection::Pull);
+    execute(command, "Failed to execute scp");
 }
 
 fn handle_push(config_file: Option<&str>, machine: &str, source: &str, destination: &str) {
@@ -213,7 +221,8 @@ fn handle_push(config_file: Option<&str>, machine: &str, source: &str, destinati
         return;
     }
 
-    scp(machine_config.unwrap(), source, destination);
+    let command = scp(machine_config.unwrap(), source, destination, ScpDirection::Push);
+    execute(command, "Failed to execute scp");
 }
 
 fn handle_ping(config_file: Option<&str>, machine: &str) {
@@ -225,7 +234,8 @@ fn handle_ping(config_file: Option<&str>, machine: &str) {
         return;
     }
     
-    ping(machine_config.as_ref().unwrap().ip.as_ref().unwrap());
+    let command = ping(machine_config.as_ref().unwrap().ip.as_ref().unwrap());
+    execute(command, "Failed to execute ping");
 }
 
 fn handle_connect(config_file: Option<&str>, machine: &str, user: Option<&str>, tmux: bool) {
@@ -237,5 +247,6 @@ fn handle_connect(config_file: Option<&str>, machine: &str, user: Option<&str>, 
         return;
     }
         
-    ssh(machine_config.unwrap(), user, tmux);
+    let command = ssh(machine_config.unwrap(), user, tmux);
+    execute(command, "Failed to execute ssh");
 }

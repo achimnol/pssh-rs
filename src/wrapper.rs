@@ -4,17 +4,37 @@ use std::process::Command;
 
 use config::MachineConfig;
 
-pub fn ping(ip: &str) {
+/// SSH Copy direction
+pub enum ScpDirection {
+    /// Push direction (host -> machine)
+    Push,
+    /// Pull direction (machine -> host)
+    Pull
+}
+
+/// Ping a machine
+///
+/// # Arguments
+///
+/// * `ip` - Machine IP
+///
+pub fn ping(ip: &str) -> Command {
     let mut command = Command::new("ping");
     command.arg(ip);      
         
     debug!("Executing {}", format!("{:?}", command));
-        
-    let mut child = command.spawn().expect("Failed to execute ping");
-    child.wait().expect("Failed to wait on child");
+    command
 }
 
-pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
+/// Copy a file from machine to host
+///
+/// # Arguments
+///
+/// * `config` - Machine configuration
+/// * `source` - Source path
+/// * `destination` - Destination path
+///
+pub fn scp(config: &MachineConfig, source: &str, destination: &str, direction: ScpDirection) -> Command {
     let mut command = Command::new("scp");
     
     if config.identity.is_some() {
@@ -26,31 +46,49 @@ pub fn scp(config: &MachineConfig, source: &str, destination: &str) {
     } else {
         command.args(&["-P", "22"]);
     }
-    
-    command.args(&[source]);
-    
+
+    let machine_path = match direction {
+        ScpDirection::Push => destination,
+        ScpDirection::Pull => source
+    };
+        
     let user_path = if config.user.is_some() {
         format!("{}@{}:{}",
             &config.user.as_ref().unwrap(),
             &config.ip.as_ref().unwrap(),
-            destination
+            machine_path
         )
     } else {
         format!("{}:{}",
             &config.ip.as_ref().unwrap(),
-            destination
+            machine_path
         )
     };
     
-    command.arg(&user_path);
+    match direction {
+        ScpDirection::Push => {
+            command.arg(&source);
+            command.arg(&user_path);
+        },
+        ScpDirection::Pull => {
+            command.arg(&user_path);
+            command.arg(&destination);
+        }
+    }
     
     debug!("Executing {}", format!("{:?}", command));
-
-    let mut child = command.spawn().expect("Failed to execute ping");
-    child.wait().expect("Failed to wait on child");
+    command
 }
 
-pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
+/// Execute an SSH connection
+///
+/// # Arguments
+///
+/// * `config` - Machine configuration
+/// * `user` - Username
+/// * `tmux` - Use `tmux`
+///
+pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) -> Command {
     let mut command = Command::new("ssh");
     
     if config.identity.is_some() {
@@ -92,7 +130,52 @@ pub fn ssh(config: &MachineConfig, user: Option<&str>, tmux: bool) {
     }
     
     debug!("Executing {}", format!("{:?}", command));
-    
-    let mut child = command.spawn().expect("Failed to execute ping");
+    command
+}
+
+/// Execute a command
+///
+/// # Arguments
+///
+/// * `command` - Command to execute
+/// * `error_message` - Error message
+/// 
+pub fn execute(mut command: Command, error_message: &str) {
+    let mut child = command.spawn().expect(error_message);
     child.wait().expect("Failed to wait on child");
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn format_command(command: &Command) -> String {
+        let debug_cmd = format!("{:?}", command);
+        debug_cmd.split(" ").map(|s| {
+            let length = s.len();
+            s.chars().skip(1).take(length - 2).collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+
+    #[test]
+    fn test_commands() {
+        let config = MachineConfig {
+            ip: Some("localhost".to_string()),
+            .. Default::default()
+        };
+
+        let command = scp(&config, "/toto", "./tutu", ScpDirection::Push);        
+        assert_eq!(format_command(&command), "scp -P 22 /toto localhost:./tutu");
+
+        let command = scp(&config, "/toto", "./tutu", ScpDirection::Pull);        
+        assert_eq!(format_command(&command), "scp -P 22 localhost:/toto ./tutu");
+
+        let command = ssh(&config, None, false);
+        assert_eq!(format_command(&command), "ssh -p 22 localhost");
+
+        let command = ssh(&config, Some("toto"), false);
+        assert_eq!(format_command(&command), "ssh -p 22 toto@localhost");
+    }
 }

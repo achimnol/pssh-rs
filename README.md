@@ -14,26 +14,26 @@ pssh - simple SSH connection utility
 #### Configuration file content (config.yml)
 ```yaml
 defaults:
-  _values:
+  $:
     user: test
     port: 22
     identity: ~/.ssh/id_rsa
   work:
-    _values:
+    $:
       user: workuser
       port: 2233
       identity: ~/.ssh/work_id_rsa
 
 machines:
   localhost:
-    _values:
+    $:
       ip: localhost
   work:
     test01:
-      _values:
+      $:
         ip: test01.work.dev
     test02:
-      _values:
+      $:
         ip: test02.work.dev
         port: 2244
 ```
@@ -42,23 +42,23 @@ machines:
 
 - **localhost**
     - **IP**: localhost
-    - **User** test *(from **defaults**)*
-    - **Port**: 22 *(from **defaults**)*
-    - **Identity**: ~/.ssh/id_rsa *(from **defaults**)*
+    - **User** test *(from defaults)*
+    - **Port**: 22 *(from defaults)*
+    - **Identity**: ~/.ssh/id_rsa *(from defaults)*
 
 
 - **work:test01**
     - **IP**: test01.work.dev
-    - **User**: workuser *(from **defaults:work**)*
-    - **Port**: 2233 *(from **defaults:work**)*
-    - **Identity**: ~/.ssh/work_id_rsa *(from **defaults:work**)*
+    - **User**: workuser *(from defaults:work)*
+    - **Port**: 2233 *(from defaults:work)*
+    - **Identity**: ~/.ssh/work\_id\_rsa *(from defaults:work)*
 
 
 - **work:test02**
     - **IP**: test02.work.dev
-    - **User**: workuser *(from **defaults:work**)*
-    - **Port**: 2244 *(**override**)*
-    - **identity**: ~/.ssh/work_id_rsa *(from **defaults:work**)*
+    - **User**: workuser *(from defaults:work)*
+    - **Port**: 2244 *(override)*
+    - **identity**: ~/.ssh/work\_id\_rsa *(from defaults:work)*
 
 ## Usage
 
