@@ -1,7 +1,7 @@
 pssh - simple SSH connection utility
 ====================================
 
-[![pipeline status](https://gitlab.com/Srynetix/pssh-rs/badges/master/pipeline.svg)](https://gitlab.com/Srynetix/pssh-rs/commits/master)
+[![status](https://travis-ci.org/Srynetix/pssh-rs.svg?branch=master)](https://github.com/Srynetix/pssh-rs)
 
 ## Key features
 
